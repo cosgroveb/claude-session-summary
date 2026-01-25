@@ -18,6 +18,11 @@ LOG_FILE="$SUMMARY_DIR/summary.log"
 
 # Background the API call to avoid blocking
 {
+  # Debug: log start and write raw output to debug file
+  echo "$(date -Iseconds) DEBUG: Starting claude call" >> "$LOG_FILE"
+
+  DEBUG_OUTPUT="$SUMMARY_DIR/debug-output.txt"
+
   output=$(
     claude --continue \
       --model haiku \
@@ -39,6 +44,10 @@ LOG_FILE="$SUMMARY_DIR/summary.log"
 Keep it under 150 words. Output ONLY the markdown, nothing else.' \
       2>&1
   )
+
+  # Debug: log output length and save raw output
+  echo "$(date -Iseconds) DEBUG: Output length=${#output}" >> "$LOG_FILE"
+  echo "$output" > "$DEBUG_OUTPUT"
 
   # Check for API errors
   if echo "$output" | grep -q '"type":"error"'; then
