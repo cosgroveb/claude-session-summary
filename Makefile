@@ -1,7 +1,7 @@
 .PHONY: install uninstall test
 
 PLUGIN_NAME := claude-session-summary
-PLUGIN_DIR := $(HOME)/.claude/plugins/$(PLUGIN_NAME)
+PLUGIN_DIR := $(HOME)/.claude/plugins/cache/$(PLUGIN_NAME)/$(PLUGIN_NAME)/1.0.0
 
 install:
 	@echo "Installing $(PLUGIN_NAME)..."
