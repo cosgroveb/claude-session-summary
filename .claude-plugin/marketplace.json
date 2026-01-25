@@ -1,0 +1,8 @@
+{
+  "name": "claude-session-summary",
+  "title": "Session Summary",
+  "description": "Generates running session summaries on stop, viewable via tmux popup (prefix + S)",
+  "author": "Brian Cosgrove",
+  "homepage": "https://github.com/cosgroveb/claude-session-summary",
+  "keywords": ["tmux", "session", "summary", "productivity"]
+}
