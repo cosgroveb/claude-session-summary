@@ -26,8 +26,7 @@ DEBUG_OUTPUT="$SUMMARY_DIR/debug-output.txt"
   output=$(
     claude --continue \
       --model haiku \
-      --output-format=stream-json \
-      --verbose \
+      --output-format=json \
       --print \
       --settings '{"disableAllHooks": true}' \
       -p 'Generate a brief session summary in this exact format:
@@ -49,21 +48,20 @@ Keep it under 150 words. Output ONLY the markdown, nothing else.' \
   echo "$output" > "$DEBUG_OUTPUT"
 
   # Check for API errors
-  if echo "$output" | grep -q '"type":"error"'; then
-    error_msg=$(echo "$output" | grep '"type":"error"' | jq -r '.error.message // "unknown"' 2>/dev/null | head -1)
+  if echo "$output" | jq -e '.is_error == true' >/dev/null 2>&1; then
+    error_msg=$(echo "$output" | jq -r '.error // "unknown"' 2>/dev/null)
     echo "$(date -Iseconds) session=${SESSION_ID} status=error message=\"${error_msg}\"" >> "$LOG_FILE"
     exit 0
   fi
 
-  # Extract the summary from assistant text messages
-  summary=$(echo "$output" | grep '^{' | jq -rs '[.[] | select(.type == "assistant") | .message.content[]? | select(.type == "text") | .text] | add // empty')
+  # Extract summary text from json output (result field contains the response)
+  summary=$(echo "$output" | jq -r '.result // empty' 2>/dev/null)
 
   # Log cost
-  result_line=$(echo "$output" | grep '"type":"result"' | head -1)
-  if [[ -n $result_line ]]; then
-    cost=$(echo "$result_line" | jq -r '.total_cost_usd // 0')
-    input_tokens=$(echo "$result_line" | jq -r '.usage.input_tokens // 0')
-    output_tokens=$(echo "$result_line" | jq -r '.usage.output_tokens // 0')
+  cost=$(echo "$output" | jq -r '.total_cost_usd // 0' 2>/dev/null)
+  input_tokens=$(echo "$output" | jq -r '.usage.input_tokens // 0' 2>/dev/null)
+  output_tokens=$(echo "$output" | jq -r '.usage.output_tokens // 0' 2>/dev/null)
+  if [[ "$cost" != "0" && "$cost" != "null" ]]; then
     echo "$(date -Iseconds) session=${SESSION_ID} cost=\$${cost} input=${input_tokens} output=${output_tokens}" >> "$LOG_FILE"
   fi
 
