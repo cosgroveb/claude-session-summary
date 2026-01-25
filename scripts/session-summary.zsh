@@ -52,7 +52,8 @@ Keep it under 150 words. Output ONLY the markdown, nothing else.' \
   fi
 
   # Extract summary text from json output (result field contains the response)
-  summary=$(echo "$output" | jq -r '.result // empty' 2>/dev/null)
+  # Use python with strict=False to handle unescaped control chars in strings
+  summary=$(echo "$output" | python3 -c "import sys,json; d=json.loads(sys.stdin.read(),strict=False); print(d.get('result',''))" 2>/dev/null)
 
   # Log cost
   cost=$(echo "$output" | jq -r '.total_cost_usd // 0' 2>/dev/null)
