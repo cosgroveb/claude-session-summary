@@ -2,7 +2,7 @@
 #
 # session-summary.zsh - Generate running session summary on Stop hook
 #
-# Uses Haiku to generate a brief session summary, stores in conventional location.
+# Uses Haiku to generate a brief session summary, stores per-session.
 # View with tmux keybind: prefix + S (requires tmux config addition)
 #
 
@@ -13,15 +13,15 @@
 SUMMARY_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/claude-sessions"
 mkdir -p "$SUMMARY_DIR"
 
-SUMMARY_FILE="$SUMMARY_DIR/current.md"
+# Use session ID for filename, fall back to timestamp
+SESSION_ID="${CLAUDE_SESSION_ID:-$(date +%Y%m%d-%H%M%S)}"
+SUMMARY_FILE="$SUMMARY_DIR/${SESSION_ID}.md"
 LOG_FILE="$SUMMARY_DIR/summary.log"
+DEBUG_OUTPUT="$SUMMARY_DIR/debug-output.txt"
 
 # Background the API call to avoid blocking
 {
-  # Debug: log start and write raw output to debug file
-  echo "$(date -Iseconds) DEBUG: Starting claude call" >> "$LOG_FILE"
-
-  DEBUG_OUTPUT="$SUMMARY_DIR/debug-output.txt"
+  echo "$(date -Iseconds) session=${SESSION_ID} status=started" >> "$LOG_FILE"
 
   output=$(
     claude --continue \
@@ -45,14 +45,13 @@ Keep it under 150 words. Output ONLY the markdown, nothing else.' \
       2>&1
   )
 
-  # Debug: log output length and save raw output
-  echo "$(date -Iseconds) DEBUG: Output length=${#output}" >> "$LOG_FILE"
+  # Debug: save raw output
   echo "$output" > "$DEBUG_OUTPUT"
 
   # Check for API errors
   if echo "$output" | grep -q '"type":"error"'; then
     error_msg=$(echo "$output" | grep '"type":"error"' | jq -r '.error.message // "unknown"' 2>/dev/null | head -1)
-    echo "$(date -Iseconds) error=\"API error\" message=\"${error_msg}\"" >> "$LOG_FILE"
+    echo "$(date -Iseconds) session=${SESSION_ID} status=error message=\"${error_msg}\"" >> "$LOG_FILE"
     exit 0
   fi
 
@@ -65,15 +64,20 @@ Keep it under 150 words. Output ONLY the markdown, nothing else.' \
     cost=$(echo "$result_line" | jq -r '.total_cost_usd // 0')
     input_tokens=$(echo "$result_line" | jq -r '.usage.input_tokens // 0')
     output_tokens=$(echo "$result_line" | jq -r '.usage.output_tokens // 0')
-    echo "$(date -Iseconds) cost=\$${cost} input=${input_tokens} output=${output_tokens}" >> "$LOG_FILE"
+    echo "$(date -Iseconds) session=${SESSION_ID} cost=\$${cost} input=${input_tokens} output=${output_tokens}" >> "$LOG_FILE"
   fi
 
-  # Write summary to file (overwrite - always current session)
+  # Write summary to per-session file
   if [[ -n $summary ]]; then
     cat > "$SUMMARY_FILE" << EOF
-<!-- Updated: $(date -Iseconds) -->
+<!-- Session: ${SESSION_ID} | Updated: $(date -Iseconds) -->
 
 ${summary}
 EOF
+    # Update latest symlink
+    ln -sf "${SESSION_ID}.md" "$SUMMARY_DIR/latest.md"
+    echo "$(date -Iseconds) session=${SESSION_ID} status=success file=${SUMMARY_FILE}" >> "$LOG_FILE"
+  else
+    echo "$(date -Iseconds) session=${SESSION_ID} status=empty_summary" >> "$LOG_FILE"
   fi
 } &!
