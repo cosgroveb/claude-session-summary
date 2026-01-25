@@ -6,9 +6,6 @@
 # View with tmux keybind: prefix + S (requires tmux config addition)
 #
 
-# Exit silently if not in tmux
-[[ -z $TMUX ]] && exit 0
-
 # Summary storage directory
 SUMMARY_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/claude-sessions"
 mkdir -p "$SUMMARY_DIR"
