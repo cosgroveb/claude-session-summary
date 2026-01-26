@@ -6,34 +6,32 @@
 # View with tmux keybind: prefix + S
 #
 
-# Read hook input from stdin (Stop hook provides JSON with session_id, cwd, etc.)
-HOOK_INPUT=$(cat)
+# Read hook input with timeout - don't let stdin block us
+HOOK_INPUT=$(timeout 0.5 cat 2>/dev/null || echo '{}')
 
-# Parse hook input - extract session_id and cwd for organization
-SESSION_ID=$(echo "$HOOK_INPUT" | jq -r '.session_id // empty' 2>/dev/null)
-PROJECT_DIR=$(echo "$HOOK_INPUT" | jq -r '.cwd // empty' 2>/dev/null)
-
-# Fall back to timestamp if no session_id
-[[ -z $SESSION_ID ]] && SESSION_ID="unknown-$(date +%Y%m%d-%H%M%S)"
-
-# Derive project name from cwd (basename), fall back to "default"
-if [[ -n $PROJECT_DIR ]]; then
-  PROJECT_NAME=$(basename "$PROJECT_DIR")
-else
-  PROJECT_NAME="default"
-fi
-
-# Summary storage: per-project directories
-BASE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/claude-sessions"
-PROJECT_SUMMARY_DIR="$BASE_DIR/$PROJECT_NAME"
-mkdir -p "$PROJECT_SUMMARY_DIR"
-
-SUMMARY_FILE="$PROJECT_SUMMARY_DIR/${SESSION_ID}.md"
-LOG_FILE="$BASE_DIR/summary.log"
-DEBUG_OUTPUT="$PROJECT_SUMMARY_DIR/debug-output.txt"
-
-# Background the API call to avoid blocking the hook
+# Fork IMMEDIATELY to survive the hook timeout
+# All processing happens in the background
 {
+  # Parse hook input - extract session_id and cwd
+  SESSION_ID=$(echo "$HOOK_INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+  PROJECT_DIR=$(echo "$HOOK_INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+
+  # Fall back to timestamp if no session_id
+  [[ -z $SESSION_ID ]] && SESSION_ID="unknown-$(date +%Y%m%d-%H%M%S)"
+
+  # Derive project name from cwd (zsh native :t = basename)
+  PROJECT_NAME="${PROJECT_DIR:t}"
+  [[ -z $PROJECT_NAME ]] && PROJECT_NAME="default"
+
+  # Summary storage: per-project directories
+  BASE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/claude-sessions"
+  PROJECT_SUMMARY_DIR="$BASE_DIR/$PROJECT_NAME"
+  mkdir -p "$PROJECT_SUMMARY_DIR"
+
+  SUMMARY_FILE="$PROJECT_SUMMARY_DIR/${SESSION_ID}.md"
+  LOG_FILE="$BASE_DIR/summary.log"
+  DEBUG_OUTPUT="$PROJECT_SUMMARY_DIR/debug-output.txt"
+
   echo "$(date -Iseconds) project=${PROJECT_NAME} session=${SESSION_ID} status=started" >> "$LOG_FILE"
 
   output=$(
@@ -93,3 +91,6 @@ EOF
     echo "$(date -Iseconds) project=${PROJECT_NAME} session=${SESSION_ID} status=empty_summary" >> "$LOG_FILE"
   fi
 } &!
+
+# Exit immediately - background job continues independently
+exit 0
