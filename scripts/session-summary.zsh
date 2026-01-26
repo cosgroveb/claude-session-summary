@@ -2,23 +2,39 @@
 #
 # session-summary.zsh - Generate running session summary on Stop hook
 #
-# Uses Haiku to generate a brief session summary, stores per-session.
-# View with tmux keybind: prefix + S (requires tmux config addition)
+# Uses Haiku to generate a brief session summary, stores per-project/session.
+# View with tmux keybind: prefix + S
 #
 
-# Summary storage directory
-SUMMARY_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/claude-sessions"
-mkdir -p "$SUMMARY_DIR"
+# Read hook input from stdin (Stop hook provides JSON with session_id, cwd, etc.)
+HOOK_INPUT=$(cat)
 
-# Use session ID for filename, fall back to timestamp
-SESSION_ID="${CLAUDE_SESSION_ID:-$(date +%Y%m%d-%H%M%S)}"
-SUMMARY_FILE="$SUMMARY_DIR/${SESSION_ID}.md"
-LOG_FILE="$SUMMARY_DIR/summary.log"
-DEBUG_OUTPUT="$SUMMARY_DIR/debug-output.txt"
+# Parse hook input - extract session_id and cwd for organization
+SESSION_ID=$(echo "$HOOK_INPUT" | jq -r '.session_id // empty' 2>/dev/null)
+PROJECT_DIR=$(echo "$HOOK_INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 
-# Background the API call to avoid blocking
+# Fall back to timestamp if no session_id
+[[ -z $SESSION_ID ]] && SESSION_ID="unknown-$(date +%Y%m%d-%H%M%S)"
+
+# Derive project name from cwd (basename), fall back to "default"
+if [[ -n $PROJECT_DIR ]]; then
+  PROJECT_NAME=$(basename "$PROJECT_DIR")
+else
+  PROJECT_NAME="default"
+fi
+
+# Summary storage: per-project directories
+BASE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/claude-sessions"
+PROJECT_SUMMARY_DIR="$BASE_DIR/$PROJECT_NAME"
+mkdir -p "$PROJECT_SUMMARY_DIR"
+
+SUMMARY_FILE="$PROJECT_SUMMARY_DIR/${SESSION_ID}.md"
+LOG_FILE="$BASE_DIR/summary.log"
+DEBUG_OUTPUT="$PROJECT_SUMMARY_DIR/debug-output.txt"
+
+# Background the API call to avoid blocking the hook
 {
-  echo "$(date -Iseconds) session=${SESSION_ID} status=started" >> "$LOG_FILE"
+  echo "$(date -Iseconds) project=${PROJECT_NAME} session=${SESSION_ID} status=started" >> "$LOG_FILE"
 
   output=$(
     claude --continue \
@@ -47,7 +63,7 @@ Keep it under 150 words. Output ONLY the markdown, nothing else.' \
   # Check for API errors
   if echo "$output" | jq -e '.is_error == true' >/dev/null 2>&1; then
     error_msg=$(echo "$output" | jq -r '.error // "unknown"' 2>/dev/null)
-    echo "$(date -Iseconds) session=${SESSION_ID} status=error message=\"${error_msg}\"" >> "$LOG_FILE"
+    echo "$(date -Iseconds) project=${PROJECT_NAME} session=${SESSION_ID} status=error message=\"${error_msg}\"" >> "$LOG_FILE"
     exit 0
   fi
 
@@ -60,20 +76,20 @@ Keep it under 150 words. Output ONLY the markdown, nothing else.' \
   input_tokens=$(echo "$output" | jq -r '.usage.input_tokens // 0' 2>/dev/null)
   output_tokens=$(echo "$output" | jq -r '.usage.output_tokens // 0' 2>/dev/null)
   if [[ "$cost" != "0" && "$cost" != "null" ]]; then
-    echo "$(date -Iseconds) session=${SESSION_ID} cost=\$${cost} input=${input_tokens} output=${output_tokens}" >> "$LOG_FILE"
+    echo "$(date -Iseconds) project=${PROJECT_NAME} session=${SESSION_ID} cost=\$${cost} input=${input_tokens} output=${output_tokens}" >> "$LOG_FILE"
   fi
 
   # Write summary to per-session file
   if [[ -n $summary ]]; then
     cat > "$SUMMARY_FILE" << EOF
-<!-- Session: ${SESSION_ID} | Updated: $(date -Iseconds) -->
+<!-- Session: ${SESSION_ID} | Project: ${PROJECT_NAME} | Updated: $(date -Iseconds) -->
 
 ${summary}
 EOF
-    # Update latest symlink
-    ln -sf "${SESSION_ID}.md" "$SUMMARY_DIR/latest.md"
-    echo "$(date -Iseconds) session=${SESSION_ID} status=success file=${SUMMARY_FILE}" >> "$LOG_FILE"
+    # Update per-project latest symlink
+    ln -sf "${SESSION_ID}.md" "$PROJECT_SUMMARY_DIR/latest.md"
+    echo "$(date -Iseconds) project=${PROJECT_NAME} session=${SESSION_ID} status=success file=${SUMMARY_FILE}" >> "$LOG_FILE"
   else
-    echo "$(date -Iseconds) session=${SESSION_ID} status=empty_summary" >> "$LOG_FILE"
+    echo "$(date -Iseconds) project=${PROJECT_NAME} session=${SESSION_ID} status=empty_summary" >> "$LOG_FILE"
   fi
 } &!
