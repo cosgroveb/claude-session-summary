@@ -1,6 +1,6 @@
 {
   "name": "claude-session-summary",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Generates running session summaries on stop, viewable via tmux popup",
   "hooks": {
     "Stop": [
@@ -9,7 +9,7 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/session-summary.zsh",
-            "timeout": 2
+            "timeout": 5
           }
         ]
       }
