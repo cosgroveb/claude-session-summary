@@ -9,9 +9,10 @@ Claude Code plugin that automatically generates session summaries when Claude Co
 ## Commands
 
 ```bash
-make install      # Copy plugin to ~/.claude/plugins/cache/ and register in installed_plugins.json
-make uninstall    # Remove plugin from cache
-make test         # Run the script and display generated summary
+make install      # Add marketplace, install plugin via claude CLI
+make uninstall    # Uninstall plugin and remove marketplace
+make clean        # Same as uninstall but suppresses errors
+make reinstall    # clean + install
 ```
 
 ## Architecture
@@ -43,4 +44,5 @@ The plugin is a single zsh script (`scripts/session-summary.zsh`) triggered by a
 - `.claude-plugin/plugin.json` -- Hook registration (Stop hook, 5s timeout)
 - `.claude-plugin/marketplace.json` -- Plugin marketplace metadata
 - `scripts/session-summary.zsh` -- All plugin logic (96 lines)
-- `Makefile` -- Install/uninstall/test targets
+- `Makefile` -- Install/uninstall/clean/reinstall targets
+- `.github/workflows/validate.yml` -- CI plugin validation on push/PR
