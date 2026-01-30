@@ -1,37 +1,26 @@
-.PHONY: install uninstall test
+.PHONY: install uninstall clean reinstall
 
 PLUGIN_NAME := claude-session-summary
-PLUGIN_DIR := $(HOME)/.claude/plugins/cache/$(PLUGIN_NAME)/$(PLUGIN_NAME)/1.0.0
+MARKETPLACE_NAME := claude-session-summary
 
 install:
-	@echo "Installing $(PLUGIN_NAME)..."
-	@mkdir -p $(PLUGIN_DIR)
-	@cp -r .claude-plugin/* $(PLUGIN_DIR)/
-	@mkdir -p $(PLUGIN_DIR)/scripts
-	@cp scripts/*.zsh $(PLUGIN_DIR)/scripts/
-	@chmod +x $(PLUGIN_DIR)/scripts/*.zsh
-	@# Register plugin if not already registered
-	@if ! grep -q '"$(PLUGIN_NAME)@local"' $(HOME)/.claude/plugins/installed_plugins.json 2>/dev/null; then \
-		jq '.plugins["$(PLUGIN_NAME)@local"] = [{"scope": "user", "installPath": "$(PLUGIN_DIR)", "version": "1.0.0", "installedAt": "'$$(date -u +%Y-%m-%dT%H:%M:%S.000Z)'", "lastUpdated": "'$$(date -u +%Y-%m-%dT%H:%M:%S.000Z)'"}]' \
-			$(HOME)/.claude/plugins/installed_plugins.json > /tmp/plugins.json && \
-		mv /tmp/plugins.json $(HOME)/.claude/plugins/installed_plugins.json; \
-		echo "Registered plugin in installed_plugins.json"; \
-	fi
-	@echo "Installed to $(PLUGIN_DIR)"
-	@echo ""
-	@echo "IMPORTANT: Restart Claude to activate the plugin!"
-	@echo ""
-	@echo "Add to ~/.tmux.conf for prefix + S viewing:"
-	@echo 'bind-key S display-popup -w 80% -h 60% -E "glow -p ~/.local/share/claude-sessions/current.md 2>/dev/null || { echo No summary yet.; read; }"'
+	@echo "Adding marketplace..."
+	claude plugin marketplace add "$(shell pwd)"
+	@echo "Installing plugin..."
+	claude plugin install $(PLUGIN_NAME)@$(MARKETPLACE_NAME)
+	@echo "Done. Restart Claude to activate the plugin."
 
 uninstall:
-	@echo "Uninstalling $(PLUGIN_NAME)..."
-	@rm -rf $(PLUGIN_DIR)
-	@echo "Done"
+	@echo "Uninstalling plugin..."
+	-claude plugin uninstall $(PLUGIN_NAME)
+	@echo "Removing marketplace..."
+	-claude plugin marketplace remove $(MARKETPLACE_NAME)
+	@echo "Done."
 
-test:
-	@echo "Running session-summary.zsh..."
-	@./scripts/session-summary.zsh
-	@sleep 3
-	@echo "Summary:"
-	@cat ~/.local/share/claude-sessions/current.md 2>/dev/null || echo "No summary generated"
+clean:
+	@echo "Cleaning up..."
+	-claude plugin uninstall $(PLUGIN_NAME) 2>/dev/null || true
+	-claude plugin marketplace remove $(MARKETPLACE_NAME) 2>/dev/null || true
+	@echo "Done."
+
+reinstall: clean install

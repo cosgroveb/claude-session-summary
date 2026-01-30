@@ -1,8 +1,17 @@
 {
   "name": "claude-session-summary",
-  "title": "Session Summary",
-  "description": "Generates running session summaries on stop, viewable via tmux popup (prefix + S)",
-  "author": "Brian Cosgrove",
-  "homepage": "https://github.com/cosgroveb/claude-session-summary",
-  "keywords": ["tmux", "session", "summary", "productivity"]
+  "owner": {
+    "name": "cosgroveb"
+  },
+  "metadata": {
+    "description": "Claude Code plugins for session summaries"
+  },
+  "plugins": [
+    {
+      "name": "claude-session-summary",
+      "source": "./",
+      "description": "Generates running session summaries on stop, viewable via tmux popup",
+      "version": "1.0.1"
+    }
+  ]
 }
